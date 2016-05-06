@@ -2,7 +2,7 @@
 set_time_limit(500);
 mb_language('Japanese');
 
-require_once('./phpQuery.php');
+require_once('./phpQuery-onefile.php');
 require_once('./key.php');
 
 //フォルダの定義
