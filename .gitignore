@@ -1,3 +1,5 @@
 onews/*.wav
 onews/articles.json
 key.php
+
+/vendor/

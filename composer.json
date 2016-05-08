@@ -1,0 +1,13 @@
+{
+    "name": "rabbitclub/onews-batch",
+    "description": "onews batch",
+    "authors": [
+        {
+            "name": "rabbitclub",
+            "email": "rabbitclub0@gmail.com"
+        }
+    ],
+    "require": {
+        "cloudconvert/cloudconvert-php": "dev-master"
+    }
+}
