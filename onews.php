@@ -1,13 +1,16 @@
 <?php
 set_time_limit(500);
 mb_language('Japanese');
+date_default_timezone_set('Asia/Tokyo');
 
 require_once('./phpQuery-onefile.php');
 require_once('./key.php');
 require __DIR__ . '/vendor/autoload.php';
 use \CloudConvert\Api;
-// @TODO アカウントいっぱい作ってバッチ動かすたびにapikeyを変える
-$cc_api = new Api($cloud_convert_apikey[0]);
+
+// バッチを動かす時間によって、違うapikeyを使用
+$cc_apikey_index = (int)(date('G') / 3);
+$cc_api = new Api($cloud_convert_apikey[$cc_apikey_index]);
 
 //フォルダの定義
 define('OUTPUT_ONEWS', './onews/');
