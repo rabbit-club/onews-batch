@@ -11,6 +11,7 @@ use \CloudConvert\Api;
 // バッチを動かす時間によって、違うapikeyを使用
 $cc_apikey_index = (int)(date('G') / 3);
 $cc_api = new Api($cloud_convert_apikey[$cc_apikey_index]);
+$dropbox = new \Dropbox\Client($dropbox_apikey, 'onews');
 
 define('OUTPUT_ONEWS', './onews/');
 
@@ -39,6 +40,7 @@ foreach ($data_list as $key => $data) {
 
 $json = json_encode($data_list, JSON_UNESCAPED_UNICODE);
 file_put_contents(OUTPUT_ONEWS . 'articles.json', $json);
+uploadDropBox($dropbox, '/articles.json', OUTPUT_ONEWS . 'articles.json', OUTPUT_ONEWS . 'articles.json.dbx');
 
 echo 'done';
 
@@ -81,6 +83,24 @@ function doCloudConvert($cc_api, $file_name, $voice_text_format, $cloud_convert_
   ->wait();
   $download = $cc_api->get($api_object->url);
   return 'https:' . $download['output']['url'];
+}
+
+function uploadDropBox($dropbox, $dropbox_file_path, $upload_file_path, $download_file_path = null)
+{
+  if (!empty($download_file_path)) {
+    $fd = fopen($download_file_path, "wb");
+    $metadata = $dropbox->getFile($dropbox_file_path, $fd);
+    fclose($fd);
+    $rev = $metadata['rev'];
+  }
+
+  $fp = fopen($upload_file_path, 'rb');
+  if (!empty($download_file_path)) {
+    $dropbox->uploadFile($dropbox_file_path, \Dropbox\WriteMode::update($rev), $fp);
+  } else {
+    $dropbox->uploadFile($dropbox_file_path, \Dropbox\WriteMode::add(), $fp);
+  }
+  fclose($fp);
 }
 
 function getLinks($url)
