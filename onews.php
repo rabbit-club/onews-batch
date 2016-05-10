@@ -35,9 +35,15 @@ foreach ($data_list as $key => $data) {
   $file_name = 'voice_' . $key . '.' . $voice_text_format;
   file_put_contents(OUTPUT_ONEWS . $file_name, $file);
 
-  $data_list[$key]['voice'] = doCloudConvert($cc_api, $file_name, $voice_text_format, $cloud_convert_format);
+  try {
+    $data_list[$key]['voice'] = doCloudConvert($cc_api, $file_name, $voice_text_format, $cloud_convert_format);
+  } catch (Exception $e) {
+    echo $e->getMessage() . "\n";
+    unset($data_list[$key]);
+  }
 }
 
+$data_list = array_merge($data_list);
 $json = json_encode($data_list, JSON_UNESCAPED_UNICODE);
 file_put_contents(OUTPUT_ONEWS . 'articles.json', $json);
 uploadDropBox($dropbox, '/articles.json', OUTPUT_ONEWS . 'articles.json', OUTPUT_ONEWS . 'articles.json.dbx');
@@ -74,14 +80,26 @@ function getVoiceText($text, $speaker, $voice_text_format, $apikey)
 
 function doCloudConvert($cc_api, $file_name, $voice_text_format, $cloud_convert_format)
 {
-  $api_object = $cc_api->convert([
-    'inputformat' => $voice_text_format,
-    'outputformat' => $cloud_convert_format,
-    'input' => 'upload',
-    'file' => fopen(OUTPUT_ONEWS . $file_name, 'r'),
-  ])
-  ->wait();
-  $download = $cc_api->get($api_object->url);
+  try {
+    $api_object = $cc_api->convert([
+      'inputformat' => $voice_text_format,
+      'outputformat' => $cloud_convert_format,
+      'input' => 'upload',
+      'file' => fopen(OUTPUT_ONEWS . $file_name, 'r'),
+    ])
+    ->wait();
+    $download = $cc_api->get($api_object->url);
+  } catch (CloudConvert\Exceptions\ApiBadRequestException $e) {
+    throw new Exception($e->getMessage());
+  } catch (CloudConvert\Exceptions\ApiConversionFailedException $e) {
+    throw new Exception($e->getMessage());
+  } catch (CloudConvert\Exceptions\ApiTemporaryUnavailableException $e) {
+    throw new Exception($e->getMessage());
+  } catch (CloudConvert\Exceptions\ApiException $e) {
+    throw new Exception($e->getMessage());
+  } catch (Exception $e) {
+    throw new Exception($e->getMessage());
+  }
   return 'https:' . $download['output']['url'];
 }
 
@@ -144,7 +162,7 @@ function removeBrackets($target, $bracket_start, $bracket_end)
 }
 
 function shortenSentence($target, $delimiter, $length) {
-  while (mb_strlen($target) > $length) {
+  while (mb_strlen($target, 'UTF-8') > $length) {
     $target_ex = explode($delimiter, $target);
     array_pop($target_ex);
     $target = implode($delimiter, $target_ex);
