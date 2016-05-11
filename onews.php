@@ -16,11 +16,20 @@ $dropbox = new \Dropbox\Client($dropbox_apikey, 'onews');
 define('OUTPUT_ONEWS', './onews/');
 
 $url = 'http://news.yahoo.co.jp/pickup/rss.xml';
-$links = getLinks($url);
+try {
+  $links = getLinks($url);
+} catch (Exception $e) {
+  sendMessageToSlack($slack_webhook_url, '@channel: ' . $e->getMessage());
+}
 
 $data_list = [];
 foreach ($links as $link) {
   $data_list[] = getData($link);
+}
+
+if (empty($data_list)) {
+  sendMessageToSlack($slack_webhook_url, '@channel: ニュース記事データの取得に失敗しました.');
+  exit(1);
 }
 
 $speaker = 'haruka';
@@ -46,7 +55,11 @@ foreach ($data_list as $key => $data) {
 $data_list = array_merge($data_list);
 $json = json_encode($data_list, JSON_UNESCAPED_UNICODE);
 file_put_contents(OUTPUT_ONEWS . 'articles.json', $json);
-uploadDropBox($dropbox, '/articles.json', OUTPUT_ONEWS . 'articles.json', OUTPUT_ONEWS . 'articles.json.dbx');
+try {
+  uploadDropBox($dropbox, '/articles.json', OUTPUT_ONEWS . 'articles.json', OUTPUT_ONEWS . 'articles.json.dbx');
+} catch (Exception $e) {
+  sendMessageToSlack($slack_webhook_url, '@channel: dropboxへのファイルアップロードに失敗しました.');
+}
 
 echo 'done';
 
@@ -123,12 +136,18 @@ function uploadDropBox($dropbox, $dropbox_file_path, $upload_file_path, $downloa
 
 function getLinks($url)
 {
-  $xml = file_get_contents($url);
-  $feed = simplexml_load_string($xml);
   $links = [];
-  foreach ($feed->channel->item as $item) {
-    $links[] = (string)$item->link;
-  }
+  if ($xml = @file_get_contents($url)) {
+    $feed = simplexml_load_string($xml);
+    foreach ($feed->channel->item as $item) {
+      $links[] = (string)$item->link;
+    }
+    if (empty($links)) {
+      throw new Exception($url . ' 内部の取得に失敗しました.');
+    }
+  } else {
+    throw new Exception($url . ' の取得に失敗しました.');
+  };
   return $links;
 }
 
@@ -168,4 +187,22 @@ function shortenSentence($target, $delimiter, $length) {
     $target = implode($delimiter, $target_ex);
   }
   return $target . $delimiter;
+}
+
+function sendMessageToSlack($webhook_url, $message)
+{
+  $msg = [
+    'text' => $message,
+  ];
+  $msg = json_encode($msg);
+  $msg = 'payload=' . urlencode($msg);
+
+  $ch = curl_init();
+  curl_setopt($ch, CURLOPT_URL, $webhook_url);
+  curl_setopt($ch, CURLOPT_HEADER, false);
+  curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+  curl_setopt($ch, CURLOPT_POST, true);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, $msg);
+  curl_exec($ch);
+  curl_close($ch);
 }
