@@ -99,6 +99,7 @@ function doCloudConvert($cc_api, $file_name, $voice_text_format, $cloud_convert_
       'outputformat' => $cloud_convert_format,
       'input' => 'upload',
       'file' => fopen(OUTPUT_ONEWS . $file_name, 'r'),
+      'save' => true,
     ])
     ->wait();
     $download = $cc_api->get($api_object->url);
