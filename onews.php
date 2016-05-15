@@ -19,7 +19,7 @@ $url = 'http://news.yahoo.co.jp/pickup/rss.xml';
 try {
   $links = getLinks($url);
 } catch (Exception $e) {
-  sendMessageToSlack($slack_webhook_url, '@channel: ' . $e->getMessage());
+  sendMessageToSlack($slack_webhook_url, ' <!channel> ' . $e->getMessage());
 }
 
 $data_list = [];
@@ -28,7 +28,7 @@ foreach ($links as $link) {
 }
 
 if (empty($data_list)) {
-  sendMessageToSlack($slack_webhook_url, '@channel: ニュース記事データの取得に失敗しました.');
+  sendMessageToSlack($slack_webhook_url, ' <!channel> ニュース記事データの取得に失敗しました.');
   exit(1);
 }
 
@@ -43,7 +43,7 @@ foreach ($data_list as $key => $data) {
   try {
     $file = getVoiceText($text, $speaker, $voice_text_format, $apikey);
   } catch (Exception $e) {
-    sendMessageToSlack($slack_webhook_url, '@channel: ' . $e->getMessage());
+    sendMessageToSlack($slack_webhook_url, ' <!channel> ' . $e->getMessage());
     unset($data_list[$key]);
     continue;
   }
@@ -65,7 +65,7 @@ file_put_contents(OUTPUT_ONEWS . 'articles.json', $json);
 try {
   uploadDropBox($dropbox, '/articles.json', OUTPUT_ONEWS . 'articles.json', OUTPUT_ONEWS . 'articles.json.dbx');
 } catch (Exception $e) {
-  sendMessageToSlack($slack_webhook_url, '@channel: dropboxへのファイルアップロードに失敗しました.');
+  sendMessageToSlack($slack_webhook_url, ' <!channel> dropboxへのファイルアップロードに失敗しました.');
 }
 
 echo 'done';
