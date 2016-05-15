@@ -54,7 +54,7 @@ foreach ($data_list as $key => $data) {
   try {
     $data_list[$key]['voice'] = doCloudConvert($cc_api, $file_name, $voice_text_format, $cloud_convert_format);
   } catch (Exception $e) {
-    echo $e->getMessage() . "\n";
+    echo $e->getMessage() . '\n';
     unset($data_list[$key]);
   }
 }
@@ -133,7 +133,7 @@ function doCloudConvert($cc_api, $file_name, $voice_text_format, $cloud_convert_
 function uploadDropBox($dropbox, $dropbox_file_path, $upload_file_path, $download_file_path = null)
 {
   if (!empty($download_file_path)) {
-    $fd = fopen($download_file_path, "wb");
+    $fd = fopen($download_file_path, 'wb');
     $metadata = $dropbox->getFile($dropbox_file_path, $fd);
     fclose($fd);
     $rev = $metadata['rev'];
@@ -203,7 +203,7 @@ function shortenSentence($target, $delimiter, $length) {
   }
 
   if (mb_strlen($target, 'UTF-8') > $length) {
-    return mb_strimwidth($target, 0, $length, "…");
+    return mb_strimwidth($target, 0, $length, '…');
   }
 
   return $target . $delimiter;
