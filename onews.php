@@ -182,11 +182,17 @@ function removeBrackets($target, $bracket_start, $bracket_end)
 }
 
 function shortenSentence($target, $delimiter, $length) {
-  while (mb_strlen($target, 'UTF-8') > $length) {
+  while (strpos($target, $delimiter) !== false &&
+         mb_strlen($target, 'UTF-8') > $length) {
     $target_ex = explode($delimiter, $target);
     array_pop($target_ex);
     $target = implode($delimiter, $target_ex);
   }
+
+  if (mb_strlen($target, 'UTF-8') > $length) {
+    return mb_strimwidth($target, 0, $length, "…");
+  }
+  
   return $target . $delimiter;
 }
 
