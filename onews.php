@@ -19,7 +19,7 @@ $url = 'http://news.yahoo.co.jp/pickup/rss.xml';
 try {
   $links = getLinks($url);
 } catch (Exception $e) {
-  sendMessageToSlack($slack_webhook_url, '@channel: ' . $e->getMessage());
+  sendMessageToSlack($slack_webhook_url, ' <!channel> ' . $e->getMessage());
 }
 
 $data_list = [];
@@ -28,7 +28,7 @@ foreach ($links as $link) {
 }
 
 if (empty($data_list)) {
-  sendMessageToSlack($slack_webhook_url, '@channel: ニュース記事データの取得に失敗しました.');
+  sendMessageToSlack($slack_webhook_url, ' <!channel> ニュース記事データの取得に失敗しました.');
   exit(1);
 }
 
@@ -40,14 +40,21 @@ foreach ($data_list as $key => $data) {
   $text = $data['title'] . $data['description'];
   $text = shortenSentence($text, '。', 200);
 
-  $file = getVoiceText($text, $speaker, $voice_text_format, $apikey);
+  try {
+    $file = getVoiceText($text, $speaker, $voice_text_format, $docomo_apikey);
+  } catch (Exception $e) {
+    sendMessageToSlack($slack_webhook_url, ' <!channel> ' . $e->getMessage());
+    unset($data_list[$key]);
+    continue;
+  }
+
   $file_name = 'voice_' . $key . '.' . $voice_text_format;
   file_put_contents(OUTPUT_ONEWS . $file_name, $file);
 
   try {
     $data_list[$key]['voice'] = doCloudConvert($cc_api, $file_name, $voice_text_format, $cloud_convert_format);
   } catch (Exception $e) {
-    echo $e->getMessage() . "\n";
+    echo $e->getMessage() . '\n';
     unset($data_list[$key]);
   }
 }
@@ -58,15 +65,15 @@ file_put_contents(OUTPUT_ONEWS . 'articles.json', $json);
 try {
   uploadDropBox($dropbox, '/articles.json', OUTPUT_ONEWS . 'articles.json', OUTPUT_ONEWS . 'articles.json.dbx');
 } catch (Exception $e) {
-  sendMessageToSlack($slack_webhook_url, '@channel: dropboxへのファイルアップロードに失敗しました.');
+  sendMessageToSlack($slack_webhook_url, ' <!channel> dropboxへのファイルアップロードに失敗しました.');
 }
 
 echo 'done';
 
 
-function getVoiceText($text, $speaker, $voice_text_format, $apikey)
+function getVoiceText($text, $speaker, $voice_text_format, $docomo_apikey)
 {
-  $url = 'https://api.apigw.smt.docomo.ne.jp/voiceText/v1/textToSpeech?APIKEY=' . $apikey;
+  $url = 'https://api.apigw.smt.docomo.ne.jp/voiceText/v1/textToSpeech?APIKEY=' . $docomo_apikey;
 
   $data = [
     'speaker' => $speaker,
@@ -88,7 +95,13 @@ function getVoiceText($text, $speaker, $voice_text_format, $apikey)
     ]
   ];
 
-  return file_get_contents($url, false, stream_context_create($context));
+  $file = file_get_contents($url, false, stream_context_create($context));
+
+  if (!$file) {
+    throw new Exception('VoiceTextの取得に失敗しました.');
+  }
+
+  return $file;
 }
 
 function doCloudConvert($cc_api, $file_name, $voice_text_format, $cloud_convert_format)
@@ -120,7 +133,7 @@ function doCloudConvert($cc_api, $file_name, $voice_text_format, $cloud_convert_
 function uploadDropBox($dropbox, $dropbox_file_path, $upload_file_path, $download_file_path = null)
 {
   if (!empty($download_file_path)) {
-    $fd = fopen($download_file_path, "wb");
+    $fd = fopen($download_file_path, 'wb');
     $metadata = $dropbox->getFile($dropbox_file_path, $fd);
     fclose($fd);
     $rev = $metadata['rev'];
@@ -182,11 +195,17 @@ function removeBrackets($target, $bracket_start, $bracket_end)
 }
 
 function shortenSentence($target, $delimiter, $length) {
-  while (mb_strlen($target, 'UTF-8') > $length) {
+  while (strpos($target, $delimiter) !== false &&
+         mb_strlen($target, 'UTF-8') > $length) {
     $target_ex = explode($delimiter, $target);
     array_pop($target_ex);
     $target = implode($delimiter, $target_ex);
   }
+
+  if (mb_strlen($target, 'UTF-8') > $length) {
+    return mb_strimwidth($target, 0, $length, '…');
+  }
+
   return $target . $delimiter;
 }
 
