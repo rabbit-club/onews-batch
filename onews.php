@@ -41,7 +41,7 @@ foreach ($data_list as $key => $data) {
   $text = shortenSentence($text, '。', 200);
 
   try {
-    $file = getVoiceText($text, $speaker, $voice_text_format, $apikey);
+    $file = getVoiceText($text, $speaker, $voice_text_format, $docomo_apikey);
   } catch (Exception $e) {
     sendMessageToSlack($slack_webhook_url, ' <!channel> ' . $e->getMessage());
     unset($data_list[$key]);
@@ -71,9 +71,9 @@ try {
 echo 'done';
 
 
-function getVoiceText($text, $speaker, $voice_text_format, $apikey)
+function getVoiceText($text, $speaker, $voice_text_format, $docomo_apikey)
 {
-  $url = 'https://api.apigw.smt.docomo.ne.jp/voiceText/v1/textToSpeech?APIKEY=' . $apikey;
+  $url = 'https://api.apigw.smt.docomo.ne.jp/voiceText/v1/textToSpeech?APIKEY=' . $docomo_apikey;
 
   $data = [
     'speaker' => $speaker,
