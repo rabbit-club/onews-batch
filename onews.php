@@ -40,7 +40,14 @@ foreach ($data_list as $key => $data) {
   $text = $data['title'] . $data['description'];
   $text = shortenSentence($text, '。', 200);
 
-  $file = getVoiceText($text, $speaker, $voice_text_format, $apikey);
+  try {
+    $file = getVoiceText($text, $speaker, $voice_text_format, $apikey);
+  } catch (Exception $e) {
+    sendMessageToSlack($slack_webhook_url, '@channel: ' . $e->getMessage());
+    unset($data_list[$key]);
+    continue;
+  }
+
   $file_name = 'voice_' . $key . '.' . $voice_text_format;
   file_put_contents(OUTPUT_ONEWS . $file_name, $file);
 
@@ -88,7 +95,13 @@ function getVoiceText($text, $speaker, $voice_text_format, $apikey)
     ]
   ];
 
-  return file_get_contents($url, false, stream_context_create($context));
+  $file = file_get_contents($url, false, stream_context_create($context));
+
+  if (!$file) {
+    throw new Exception('VoiceTextの取得に失敗しました.');
+  }
+
+  return $file;
 }
 
 function doCloudConvert($cc_api, $file_name, $voice_text_format, $cloud_convert_format)
@@ -192,7 +205,7 @@ function shortenSentence($target, $delimiter, $length) {
   if (mb_strlen($target, 'UTF-8') > $length) {
     return mb_strimwidth($target, 0, $length, "…");
   }
-  
+
   return $target . $delimiter;
 }
 
