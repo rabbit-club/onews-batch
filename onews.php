@@ -102,7 +102,7 @@ function getVoiceText($text, $speaker, $voice_text_format, $docomo_apikey)
   $file = file_get_contents($url, false, stream_context_create($context));
 
   if (!$file) {
-    throw new Exception('VoiceTextの取得に失敗しました.');
+    throw new Exception('VoiceTextの取得に失敗しました. text: ' . $text);
   }
 
   return $file;
