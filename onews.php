@@ -1,11 +1,15 @@
 <?php
+ini_set('display_errors', 1);
+
 set_time_limit(500);
 mb_language('Japanese');
 date_default_timezone_set('Asia/Tokyo');
 
+echo 'start';
+
 require_once('./phpQuery-onefile.php');
 require_once('./key.php');
-require __DIR__ . '/vendor/autoload.php';
+require_once('./vendor/autoload.php');
 use \CloudConvert\Api;
 
 // バッチを動かす時間によって、違うapikeyを使用
@@ -68,7 +72,7 @@ try {
   sendMessageToSlack($slack_webhook_url, ' <!channel> dropboxへのファイルアップロードに失敗しました.');
 }
 
-echo 'done';
+echo 'end';
 
 
 function getVoiceText($text, $speaker, $voice_text_format, $docomo_apikey)
