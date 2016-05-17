@@ -13,7 +13,7 @@ require_once('./vendor/autoload.php');
 use \CloudConvert\Api;
 
 // バッチを動かす時間によって、違うapikeyを使用
-$cc_apikey_index = (int)(date('G') / 3);
+$cc_apikey_index = (int)(date('G'));
 $cc_api = new Api($cloud_convert_apikey[$cc_apikey_index]);
 $dropbox = new \Dropbox\Client($dropbox_apikey, 'onews');
 
@@ -42,6 +42,7 @@ $cloud_convert_format = 'mp3';
 
 foreach ($data_list as $key => $data) {
   $text = $data['title'] . $data['description'];
+  str_replace(["\r\n", "\n", "\r"], '', $text);
   $text = shortenSentence($text, '。', 200);
 
   try {
@@ -210,7 +211,8 @@ function shortenSentence($target, $delimiter, $length) {
     return mb_strimwidth($target, 0, $length, '…');
   }
 
-  return $target . $delimiter;
+  return (mb_substr($target, -1, 1, 'UTF-8') == $delimiter) ?
+    $target : $target . $delimiter;
 }
 
 function sendMessageToSlack($webhook_url, $message)
