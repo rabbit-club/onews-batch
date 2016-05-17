@@ -42,7 +42,6 @@ $cloud_convert_format = 'mp3';
 
 foreach ($data_list as $key => $data) {
   $text = $data['title'] . $data['description'];
-  str_replace(["\r\n", "\n", "\r"], '', $text);
   $text = shortenSentence($text, '。', 200);
 
   try {
@@ -176,8 +175,10 @@ function getData($link)
   $data['link']        = $link;
   $data['title']       = $pq['.topicsName']['h1']->text();
   $description         = $pq['.hbody']->text();
+  $description         = str_replace(['\r\n', '\n', '\r'], '', $description);
   $description         = removeBrackets($description, '（', '）');
   $description         = removeBrackets($description, '(', ')');
+  $description         = removeBrackets($description, '<', '>');
   $data['description'] = $description;
   $data['image']       = $pq['.headlinePic']['img']->attr('data-src');
   return $data;
@@ -201,7 +202,7 @@ function removeBrackets($target, $bracket_start, $bracket_end)
 
 function shortenSentence($target, $delimiter, $length) {
   while (strpos($target, $delimiter) !== false &&
-         mb_strlen($target, 'UTF-8') > $length) {
+         mb_strlen($target, 'UTF-8') > $length - 1) {
     $target_ex = explode($delimiter, $target);
     array_pop($target_ex);
     $target = implode($delimiter, $target_ex);
