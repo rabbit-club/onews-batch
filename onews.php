@@ -202,7 +202,7 @@ function removeBrackets($target, $bracket_start, $bracket_end)
 
 function shortenSentence($target, $delimiter, $length) {
   while (strpos($target, $delimiter) !== false &&
-         mb_strlen($target, 'UTF-8') > $length) {
+         mb_strlen($target, 'UTF-8') > $length - 1) {
     $target_ex = explode($delimiter, $target);
     array_pop($target_ex);
     $target = implode($delimiter, $target_ex);
