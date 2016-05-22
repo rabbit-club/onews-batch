@@ -1,6 +1,7 @@
 onews/*.wav
-onews/articles.json
-onews/articles.json.dbx
+onews/*.ogg
+onews/*.json
+onews/*.dbx
 key.php
 
 /vendor/

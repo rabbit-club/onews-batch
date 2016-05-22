@@ -7,14 +7,16 @@ date_default_timezone_set('Asia/Tokyo');
 
 echo 'start';
 
+CONST VOICE_TEXT_RETRY_COUNT = 1;
+
 require_once('./phpQuery-onefile.php');
 require_once('./key.php');
 require_once('./vendor/autoload.php');
-use \CloudConvert\Api;
+// use \CloudConvert\Api;
 
 // バッチを動かす時間によって、違うapikeyを使用
-$cc_apikey_index = (int)(date('G'));
-$cc_api = new Api($cloud_convert_apikey[$cc_apikey_index]);
+// $cc_apikey_index = (int)(date('G'));
+// $cc_api = new Api($cloud_convert_apikey[$cc_apikey_index]);
 $dropbox = new \Dropbox\Client($dropbox_apikey, 'onews');
 
 define('OUTPUT_ONEWS', './onews/');
@@ -37,39 +39,83 @@ if (empty($data_list)) {
 }
 
 $speaker = 'haruka';
-$voice_text_format = 'wav';
-$cloud_convert_format = 'mp3';
+$voice_text_format = 'ogg';
+// $cloud_convert_format = 'mp3';
+
+$now_h = date('H');
+$now_i = (date('i') < 30) ? '00' : '30';
 
 foreach ($data_list as $key => $data) {
   $text = $data['title'] . $data['description'];
   $text = shortenSentence($text, '。', 200);
 
-  try {
-    $file = getVoiceText($text, $speaker, $voice_text_format, $docomo_apikey);
-  } catch (Exception $e) {
-    sendMessageToSlack($slack_webhook_url, ' <!channel> ' . $e->getMessage());
+  $voice_text_status = false;
+  $err_msg = '';
+  for ($i = 0; $i <= VOICE_TEXT_RETRY_COUNT; ++$i) {
+    try {
+      $file = getVoiceText($text, $speaker, $voice_text_format, $docomo_apikey);
+      $voice_text_status = true;
+      break;
+    } catch (Exception $e) {
+      $err_msg = $e->getMessage();
+      continue;
+    }
+  }
+  if (!$voice_text_status) {
+    sendMessageToSlack($slack_webhook_url, ' <!channel> ' . $err_msg);
     unset($data_list[$key]);
     continue;
   }
 
   $file_name = 'voice_' . $key . '.' . $voice_text_format;
   file_put_contents(OUTPUT_ONEWS . $file_name, $file);
+  $file_name_dbx = "voice_{$key}_{$now_h}{$now_i}.{$voice_text_format}";
+  try {
+    uploadDropBox($dropbox, "/{$file_name_dbx}", OUTPUT_ONEWS . $file_name, OUTPUT_ONEWS . "{$file_name}.dbx");
+  } catch (Exception $e) {
+    sendMessageToSlack($slack_webhook_url, " <!channel> {$file_name_dbx} のdropboxへのファイルアップロードに失敗しました.");
+    unset($data_list[$key]);
+    continue;
+  }
 
   try {
-    $data_list[$key]['voice'] = doCloudConvert($cc_api, $file_name, $voice_text_format, $cloud_convert_format);
+    $voice_url = getDropBoxSharedUrl($dropbox, "/{$file_name_dbx}");
   } catch (Exception $e) {
-    echo $e->getMessage() . '\n';
+    sendMessageToSlack($slack_webhook_url, " <!channel> {$file_name_dbx} のdropboxの共有URLの取得に失敗しました.");
     unset($data_list[$key]);
+    continue;
   }
+
+  if (empty($voice_url)) {
+    sendMessageToSlack($slack_webhook_url, " <!channel> {$file_name_dbx} のdropboxの共有URLの取得に失敗しました.");
+    unset($data_list[$key]);
+    continue;
+  }
+
+  $voice_url = (substr($voice_url, -1, 1) == '0') ? substr_replace($voice_url, '1', -1) : $voice_url;
+  $data_list[$key]['voice'] = $voice_url;
+
+  // try {
+  //   $data_list[$key]['voice'] = doCloudConvert($cc_api, $file_name, $voice_text_format, $cloud_convert_format);
+  // } catch (Exception $e) {
+  //   echo $e->getMessage() . '\n';
+  //   unset($data_list[$key]);
+  // }
 }
 
 $data_list = array_merge($data_list);
 $json = json_encode($data_list, JSON_UNESCAPED_UNICODE);
-file_put_contents(OUTPUT_ONEWS . 'articles.json', $json);
+$articles_file_name = "articles_{$now_h}{$now_i}.json";
+file_put_contents(OUTPUT_ONEWS . $articles_file_name, $json);
 try {
-  uploadDropBox($dropbox, '/articles.json', OUTPUT_ONEWS . 'articles.json', OUTPUT_ONEWS . 'articles.json.dbx');
+  uploadDropBox(
+    $dropbox,
+    "/{$articles_file_name}",
+    OUTPUT_ONEWS . $articles_file_name,
+    OUTPUT_ONEWS . 'articles.json.dbx'
+  );
 } catch (Exception $e) {
-  sendMessageToSlack($slack_webhook_url, ' <!channel> dropboxへのファイルアップロードに失敗しました.');
+  sendMessageToSlack($slack_webhook_url, " <!channel> {$articles_file_name} のdropboxへのファイルアップロードに失敗しました.");
 }
 
 echo 'end';
@@ -150,6 +196,11 @@ function uploadDropBox($dropbox, $dropbox_file_path, $upload_file_path, $downloa
     $dropbox->uploadFile($dropbox_file_path, \Dropbox\WriteMode::add(), $fp);
   }
   fclose($fp);
+}
+
+function getDropBoxSharedUrl($dropbox, $dropbox_file_path)
+{
+  return $dropbox->createShareableLink($dropbox_file_path);
 }
 
 function getLinks($url)
