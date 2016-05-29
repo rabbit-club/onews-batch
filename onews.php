@@ -7,7 +7,8 @@ date_default_timezone_set('Asia/Tokyo');
 
 echo 'start';
 
-CONST VOICE_TEXT_RETRY_COUNT = 1;
+CONST VOICE_TEXT_RETRY_COUNT = 3;
+CONST DROPBOX_RETRY_COUNT    = 3;
 
 require_once('./phpQuery-onefile.php');
 require_once('./key.php');
@@ -45,6 +46,22 @@ $voice_text_format = 'ogg';
 $now_h = date('H');
 $now_i = (date('i') < 30) ? '00' : '30';
 
+// articles_url_listを更新する
+// 1日1回の更新とする
+if ($now_h == '04' && $now_i == '00') {
+  $list_file_name = 'articles_url_list.json';
+  try {
+    createArticlesUrlList($dropbox, OUTPUT_ONEWS . $list_file_name);
+  } catch (Exception $e) {
+    sendMessageToSlack($slack_webhook_url, ' <!channel> ' . $e->getMessage());
+  }
+  try {
+    uploadDropBox($dropbox, "/{$list_file_name}", OUTPUT_ONEWS . $list_file_name, OUTPUT_ONEWS . "{$list_file_name}.dbx");
+  } catch (Exception $e) {
+    sendMessageToSlack($slack_webhook_url, " <!channel> {$list_file_name_dbx} のdropboxへのファイルアップロードに失敗しました.");
+  }
+}
+
 foreach ($data_list as $key => $data) {
   $text = $data['title'] . $data['description'];
   $text = shortenSentence($text, '。', 200);
@@ -58,6 +75,7 @@ foreach ($data_list as $key => $data) {
       break;
     } catch (Exception $e) {
       $err_msg = $e->getMessage();
+      sleep(1);
       continue;
     }
   }
@@ -198,9 +216,46 @@ function uploadDropBox($dropbox, $dropbox_file_path, $upload_file_path, $downloa
   fclose($fp);
 }
 
-function getDropBoxSharedUrl($dropbox, $dropbox_file_path)
+function getDropBoxSharedUrl($dropbox, $dropbox_file_path, $change_dl_option = false)
 {
-  return $dropbox->createShareableLink($dropbox_file_path);
+  $link = $dropbox->createShareableLink($dropbox_file_path);
+  if ($change_dl_option) {
+    $link = (substr($link, -1, 1) == '0') ? substr_replace($link, '1', -1) : $link;
+  }
+  return $link;
+}
+
+function createArticlesUrlList($dropbox, $file_path)
+{
+    $miniutes_array = ['00', '30'];
+    $articles_url_list = [];
+    for ($i = 0; $i <= 23; ++$i) {
+        $hour = str_pad($i, 2, 0, STR_PAD_LEFT);
+        foreach ($miniutes_array as $miniutes) {
+            $dropbox_file_path = "/articles_{$hour}{$miniutes}.json";
+            $articles_url = "";
+            for ($j = 0; $j <= DROPBOX_RETRY_COUNT; ++$j) {
+                try {
+                    $articles_url = getDropBoxSharedUrl($dropbox, $dropbox_file_path, true);
+                } catch (Exception $e) {
+                    continue;
+                }
+                if (empty($articles_url)) {
+                    continue;
+                } else {
+                    break;
+                }
+            }
+            $articles_url_list[] = $articles_url;
+        }
+    }
+
+    if (empty($articles_url_list)) {
+      throw new Exception('articles_url_listの作成に失敗しました。');
+    }
+
+    $json = json_encode($articles_url_list, JSON_UNESCAPED_UNICODE);
+    file_put_contents($file_path, $json);
 }
 
 function getLinks($url)
