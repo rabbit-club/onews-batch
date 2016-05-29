@@ -75,6 +75,7 @@ foreach ($data_list as $key => $data) {
       break;
     } catch (Exception $e) {
       $err_msg = $e->getMessage();
+      sleep(1);
       continue;
     }
   }
