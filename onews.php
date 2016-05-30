@@ -62,7 +62,17 @@ if ($now_h == '04' && $now_i == '00') {
   }
 }
 
+// 重複を防ぐために直近のデータを取得し、
+// 記事URLのリストを作成する
+$latest_articles_link_list = getLatestArticlesLinkList($now_i);
+
 foreach ($data_list as $key => $data) {
+  // 重複記事
+  if (in_array($data['link'], $latest_articles_link_list)) {
+    unset($data_list[$key]);
+    continue;
+  }
+
   $text = $data['title'] . $data['description'];
   $text = shortenSentence($text, '。', 200);
 
@@ -88,18 +98,38 @@ foreach ($data_list as $key => $data) {
   $file_name = 'voice_' . $key . '.' . $voice_text_format;
   file_put_contents(OUTPUT_ONEWS . $file_name, $file);
   $file_name_dbx = "voice_{$key}_{$now_h}{$now_i}.{$voice_text_format}";
-  try {
-    uploadDropBox($dropbox, "/{$file_name_dbx}", OUTPUT_ONEWS . $file_name, OUTPUT_ONEWS . "{$file_name}.dbx");
-  } catch (Exception $e) {
-    sendMessageToSlack($slack_webhook_url, " <!channel> {$file_name_dbx} のdropboxへのファイルアップロードに失敗しました.");
+  $upload_dbx_status = false;
+  for ($i = 0; $i <= DROPBOX_RETRY_COUNT; ++$i) {
+    try {
+      uploadDropBox($dropbox, "/{$file_name_dbx}", OUTPUT_ONEWS . $file_name, OUTPUT_ONEWS . "{$file_name}.dbx");
+      $upload_dbx_status = true;
+      break;
+    } catch (Exception $e) {
+      $err_msg = $e->getMessage();
+      sleep(1);
+      continue;
+    }
+  }
+  if (!$upload_dbx_status) {
+    sendMessageToSlack($slack_webhook_url, " <!channel> {$file_name_dbx} のdropboxへのファイルアップロードに失敗しました. msg:{$err_msg}");
     unset($data_list[$key]);
     continue;
   }
 
-  try {
-    $voice_url = getDropBoxSharedUrl($dropbox, "/{$file_name_dbx}");
-  } catch (Exception $e) {
-    sendMessageToSlack($slack_webhook_url, " <!channel> {$file_name_dbx} のdropboxの共有URLの取得に失敗しました.");
+  $get_dbx_url_status = false;
+  for ($i = 0; $i <= DROPBOX_RETRY_COUNT; ++$i) {
+    try {
+      $voice_url = getDropBoxSharedUrl($dropbox, "/{$file_name_dbx}");
+      $get_dbx_url_status = true;
+      break;
+    } catch (Exception $e) {
+      $err_msg = $e->getMessage();
+      sleep(1);
+      continue;
+    }
+  }
+  if (!$get_dbx_url_status) {
+    sendMessageToSlack($slack_webhook_url, " <!channel> {$file_name_dbx} のdropboxの共有URLの取得に失敗しました. msg:{$err_msg}");
     unset($data_list[$key]);
     continue;
   }
@@ -227,35 +257,62 @@ function getDropBoxSharedUrl($dropbox, $dropbox_file_path, $change_dl_option = f
 
 function createArticlesUrlList($dropbox, $file_path)
 {
-    $miniutes_array = ['00', '30'];
-    $articles_url_list = [];
-    for ($i = 0; $i <= 23; ++$i) {
-        $hour = str_pad($i, 2, 0, STR_PAD_LEFT);
-        foreach ($miniutes_array as $miniutes) {
-            $dropbox_file_path = "/articles_{$hour}{$miniutes}.json";
-            $articles_url = "";
-            for ($j = 0; $j <= DROPBOX_RETRY_COUNT; ++$j) {
-                try {
-                    $articles_url = getDropBoxSharedUrl($dropbox, $dropbox_file_path, true);
-                } catch (Exception $e) {
-                    continue;
-                }
-                if (empty($articles_url)) {
-                    continue;
-                } else {
-                    break;
-                }
-            }
-            $articles_url_list[] = $articles_url;
+  $minutes_array = ['00', '30'];
+  $articles_url_list = [];
+  for ($i = 0; $i <= 23; ++$i) {
+    $hour = str_pad($i, 2, 0, STR_PAD_LEFT);
+    foreach ($minutes_array as $minutes) {
+      $dropbox_file_path = "/articles_{$hour}{$minutes}.json";
+      $articles_url = "";
+      for ($j = 0; $j <= DROPBOX_RETRY_COUNT; ++$j) {
+        try {
+          $articles_url = getDropBoxSharedUrl($dropbox, $dropbox_file_path, true);
+        } catch (Exception $e) {
+          continue;
         }
+        if (empty($articles_url)) {
+          continue;
+        } else {
+          break;
+        }
+      }
+      $articles_url_list[] = $articles_url;
+    }
+  }
+
+  if (empty($articles_url_list)) {
+    throw new Exception('articles_url_listの作成に失敗しました。');
+  }
+
+  $json = json_encode($articles_url_list, JSON_UNESCAPED_UNICODE);
+  file_put_contents($file_path, $json);
+}
+
+function getLatestArticlesLinkList($now_i)
+{
+  $latest_articles_link_list = [];
+  $date = date("Y-m-d H:{$now_i}:00");
+  $timestamp = strtotime($date);
+  $i = 0;
+  while (count($latest_articles_link_list) <= 40) {
+    if ($i >= 25) {
+      break;
+    }
+    ++$i;
+    $minutes = $i * 30;
+    $target_time = date('Hi', strtotime("-{$minutes} minutes", $timestamp));
+
+    $file_name = OUTPUT_ONEWS . "articles_{$target_time}.json";
+    if (!file_exists($file_name)) {
+      continue;
     }
 
-    if (empty($articles_url_list)) {
-      throw new Exception('articles_url_listの作成に失敗しました。');
+    $articles = json_decode(fread(fopen($file_name, 'r'), filesize($file_name)));
+    foreach ($articles as $article) {
+      $latest_articles_link_list[] = $article->link;
     }
-
-    $json = json_encode($articles_url_list, JSON_UNESCAPED_UNICODE);
-    file_put_contents($file_path, $json);
+  }
+  return $latest_articles_link_list;
 }
 
 function getLinks($url)
