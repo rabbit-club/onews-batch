@@ -9,6 +9,7 @@ echo 'start';
 
 CONST VOICE_TEXT_RETRY_COUNT = 3;
 CONST DROPBOX_RETRY_COUNT    = 3;
+CONST HEROKU_RETRY_COUNT     = 3;
 
 require_once('./phpQuery-onefile.php');
 require_once('./key.php');
@@ -40,8 +41,8 @@ if (empty($data_list)) {
 }
 
 $speaker = 'haruka';
-$voice_text_format = 'ogg';
-// $cloud_convert_format = 'mp3';
+$voice_text_format = 'wav';
+$heroku_convert_format = 'mp3';
 
 $now_h = date('H');
 $now_i = (date('i') < 30) ? '00' : '30';
@@ -95,13 +96,32 @@ foreach ($data_list as $key => $data) {
     continue;
   }
 
-  $file_name = 'voice_' . $key . '.' . $voice_text_format;
-  file_put_contents(OUTPUT_ONEWS . $file_name, $file);
-  $file_name_dbx = "voice_{$key}_{$now_h}{$now_i}.{$voice_text_format}";
+  $file_name = 'voice_' . $key;
+  $file_name_wav = $file_name . '.' . $voice_text_format;
+  $file_name_mp3 = $file_name . '.' . $heroku_convert_format;
+  file_put_contents(OUTPUT_ONEWS . $file_name_wav, $file);
+  $file_name_dbx = "voice_{$key}_{$now_h}{$now_i}.{$heroku_convert_format}";
+
+  try {
+    convertWavToMp3($heroku_sox_post_url, OUTPUT_ONEWS . $file_name_wav);
+  } catch (Exception $e) {
+    sendMessageToSlack($slack_webhook_url, ' <!channel> ' . $e->getMessage());
+    unset($data_list[$key]);
+    continue;
+  }
+
+  try {
+    getMp3File($heroku_sox_download_base_url, $file_name_mp3);
+  } catch (Exception $e) {
+    sendMessageToSlack($slack_webhook_url, ' <!channel> ' . $e->getMessage());
+    unset($data_list[$key]);
+    continue;
+  }
+
   $upload_dbx_status = false;
   for ($i = 0; $i <= DROPBOX_RETRY_COUNT; ++$i) {
     try {
-      uploadDropBox($dropbox, "/{$file_name_dbx}", OUTPUT_ONEWS . $file_name, OUTPUT_ONEWS . "{$file_name}.dbx");
+      uploadDropBox($dropbox, "/{$file_name_dbx}", OUTPUT_ONEWS . $file_name_mp3, OUTPUT_ONEWS . "{$file_name_mp3}.dbx");
       $upload_dbx_status = true;
       break;
     } catch (Exception $e) {
@@ -379,6 +399,39 @@ function shortenSentence($target, $delimiter, $length) {
     $target : $target . $delimiter;
 }
 
+function getMp3File($heroku_base_url, $file_name)
+{
+  $url = sprintf($heroku_base_url, $file_name);
+  if ($file = @file_get_contents($url)) {
+    file_put_contents(OUTPUT_ONEWS . $file_name, $file);
+  } else {
+    throw new Exception("mp3ファイル: {$file_name} の取得に失敗しました.");
+  };
+}
+
+function convertWavToMp3($heroku_url, $file_path)
+{
+  $status = false;
+  for ($i = 0; $i <= HEROKU_RETRY_COUNT; ++$i) {
+    try {
+      $data = [
+        'audio_file' => new CURLFile($file_path),
+      ];
+      curl_post_exec($heroku_url, $data);
+      $status = true;
+      break;
+    } catch (Exception $e) {
+      $err_msg = $e->getMessage();
+      sleep(1);
+      continue;
+    }
+  }
+
+  if (!$status) {
+    throw new Exception('wavからmp3への変換に失敗しました.');
+  }
+}
+
 function sendMessageToSlack($webhook_url, $message)
 {
   $msg = [
@@ -387,12 +440,17 @@ function sendMessageToSlack($webhook_url, $message)
   $msg = json_encode($msg);
   $msg = 'payload=' . urlencode($msg);
 
-  $ch = curl_init();
-  curl_setopt($ch, CURLOPT_URL, $webhook_url);
+  curl_post_exec($webhook_url, $msg);
+}
+
+function curl_post_exec($url, $data)
+{
+  $ch = curl_init($url);
   curl_setopt($ch, CURLOPT_HEADER, false);
   curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
   curl_setopt($ch, CURLOPT_POST, true);
-  curl_setopt($ch, CURLOPT_POSTFIELDS, $msg);
+  curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+  curl_setopt($ch, CURLOPT_TIMEOUT, 90);
   curl_exec($ch);
   curl_close($ch);
 }

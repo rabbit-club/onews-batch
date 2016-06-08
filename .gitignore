@@ -1,5 +1,6 @@
 onews/*.wav
 onews/*.ogg
+onews/*.mp3
 onews/*.json
 onews/*.dbx
 key.php
