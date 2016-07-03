@@ -7,7 +7,7 @@ date_default_timezone_set('Asia/Tokyo');
 
 echo 'start';
 
-CONST VOICE_TEXT_RETRY_COUNT = 3;
+CONST VOICE_TEXT_RETRY_COUNT = 1;
 CONST DROPBOX_RETRY_COUNT    = 3;
 CONST HEROKU_RETRY_COUNT     = 3;
 
@@ -160,7 +160,7 @@ foreach ($data_list as $key => $data) {
     continue;
   }
 
-  $voice_url = substr($voice_url, 0, strcspn($voice_url, '?'));
+  $voice_url = (substr($voice_url, -1, 1) == '0') ? substr_replace($voice_url, '1', -1) : $voice_url;
   $data_list[$key]['voice'] = $voice_url;
 
   // try {
@@ -296,7 +296,7 @@ function createArticlesUrlList($dropbox, $file_path)
           break;
         }
       }
-      $articles_url_list[] = $articles_url;
+      $articles_url_list[$hour.$minutes] = $articles_url;
     }
   }
 
@@ -304,7 +304,7 @@ function createArticlesUrlList($dropbox, $file_path)
     throw new Exception('articles_url_listの作成に失敗しました。');
   }
 
-  $json = json_encode($articles_url_list, JSON_UNESCAPED_UNICODE);
+  $json = json_encode(array_reverse($articles_url_list, true), JSON_UNESCAPED_UNICODE);
   file_put_contents($file_path, $json);
 }
 
