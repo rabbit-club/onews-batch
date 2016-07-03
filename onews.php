@@ -296,7 +296,7 @@ function createArticlesUrlList($dropbox, $file_path)
           break;
         }
       }
-      $articles_url_list[] = $articles_url;
+      $articles_url_list[$hour.$minutes] = $articles_url;
     }
   }
 
@@ -304,7 +304,7 @@ function createArticlesUrlList($dropbox, $file_path)
     throw new Exception('articles_url_listの作成に失敗しました。');
   }
 
-  $json = json_encode($articles_url_list, JSON_UNESCAPED_UNICODE);
+  $json = json_encode(array_reverse($articles_url_list, true), JSON_UNESCAPED_UNICODE);
   file_put_contents($file_path, $json);
 }
 
