@@ -160,7 +160,7 @@ foreach ($data_list as $key => $data) {
     continue;
   }
 
-  $voice_url = substr($voice_url, 0, strcspn($voice_url, '?'));
+  $voice_url = (substr($voice_url, -1, 1) == '0') ? substr_replace($voice_url, '1', -1) : $voice_url;
   $data_list[$key]['voice'] = $voice_url;
 
   // try {
