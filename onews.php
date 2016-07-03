@@ -7,7 +7,7 @@ date_default_timezone_set('Asia/Tokyo');
 
 echo 'start';
 
-CONST VOICE_TEXT_RETRY_COUNT = 3;
+CONST VOICE_TEXT_RETRY_COUNT = 1;
 CONST DROPBOX_RETRY_COUNT    = 3;
 CONST HEROKU_RETRY_COUNT     = 3;
 
