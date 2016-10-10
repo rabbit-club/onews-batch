@@ -366,7 +366,7 @@ function getData($link)
   $data['link']        = $link;
   $data['title']       = $pq['.topicsName']['h1']->text();
   $description         = $pq['.hbody']->text();
-  $description         = str_replace(['\r\n', '\n', '\r'], '', $description);
+  $description         = str_replace(["\r\n", "\n", "\r"], '', $description);
   $description         = removeBrackets($description, '（', '）');
   $description         = removeBrackets($description, '(', ')');
   $description         = removeBrackets($description, '<', '>');
