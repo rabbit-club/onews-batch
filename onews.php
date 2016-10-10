@@ -40,8 +40,11 @@ if (empty($data_list)) {
   exit(1);
 }
 
-$speaker = 'haruka';
+$speaker = 'hikari';
 $voice_text_format = 'wav';
+$voice_text_option = [
+  'emotion' => 'happiness'
+];
 $heroku_convert_format = 'mp3';
 
 $now_h = date('H');
@@ -81,7 +84,7 @@ foreach ($data_list as $key => $data) {
   $err_msg = '';
   for ($i = 0; $i <= VOICE_TEXT_RETRY_COUNT; ++$i) {
     try {
-      $file = getVoiceText($text, $speaker, $voice_text_format, $docomo_apikey);
+      $file = getVoiceText($text, $speaker, $voice_text_format, $docomo_apikey, $voice_text_option);
       $voice_text_status = true;
       break;
     } catch (Exception $e) {
@@ -189,7 +192,7 @@ try {
 echo 'end';
 
 
-function getVoiceText($text, $speaker, $voice_text_format, $docomo_apikey)
+function getVoiceText($text, $speaker, $voice_text_format, $docomo_apikey, $voice_text_option = [])
 {
   $url = 'https://api.apigw.smt.docomo.ne.jp/voiceText/v1/textToSpeech?APIKEY=' . $docomo_apikey;
 
@@ -198,6 +201,11 @@ function getVoiceText($text, $speaker, $voice_text_format, $docomo_apikey)
     'text'    => $text,
     'format'  => $voice_text_format,
   ];
+
+  if (!empty($voice_text_option)) {
+    $data += $voice_text_option;
+  }
+
   $data = http_build_query($data, '', '&');
 
   $header = [
@@ -358,12 +366,21 @@ function getData($link)
   $data['link']        = $link;
   $data['title']       = $pq['.topicsName']['h1']->text();
   $description         = $pq['.hbody']->text();
-  $description         = str_replace(['\r\n', '\n', '\r'], '', $description);
+  $description         = str_replace(["\r\n", "\n", "\r"], '', $description);
   $description         = removeBrackets($description, '（', '）');
   $description         = removeBrackets($description, '(', ')');
   $description         = removeBrackets($description, '<', '>');
   $data['description'] = $description;
   $data['image']       = $pq['.headlinePic']['img']->attr('data-src');
+
+  $meta_items = [];
+  foreach (pq('meta') as $meta) {
+    $key = pq($meta)->attr('name');
+    $value = pq($meta)->attr('content');
+    $meta_items[$key] = $value;
+  }
+  $data['time'] = isset($meta_items['pubdate']) ? strtotime($meta_items['pubdate']) : '';
+
   return $data;
 }
 
