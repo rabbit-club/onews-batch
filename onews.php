@@ -372,6 +372,15 @@ function getData($link)
   $description         = removeBrackets($description, '<', '>');
   $data['description'] = $description;
   $data['image']       = $pq['.headlinePic']['img']->attr('data-src');
+
+  $meta_items = [];
+  foreach (pq('meta') as $meta) {
+    $key = pq($meta)->attr('name');
+    $value = pq($meta)->attr('content');
+    $meta_items[$key] = $value;
+  }
+  $data['time'] = isset($meta_items['pubdate']) ? strtotime($meta_items['pubdate']) : '';
+
   return $data;
 }
 
