@@ -380,6 +380,8 @@ function getData($link)
     $meta_items[$key] = $value;
   }
   $data['time'] = isset($meta_items['pubdate']) ? strtotime($meta_items['pubdate']) : '';
+  $data['itemImage'] = isset($meta_items['item-image']) ? $meta_items['item-image'] : '';
+  $data['twitterImage'] = isset($meta_items['twitter:image']) ? $meta_items['twitter:image'] : '';
 
   return $data;
 }
