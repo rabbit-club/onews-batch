@@ -373,7 +373,7 @@ function getData($link)
   $description         = removeBrackets($description, '［', '］');
   $data['description'] = $description;
 
-  $text                = $data['title'] . '　' . $data['description'];
+  $text                = $data['title'] . ' ' . $data['description'];
   $data['text']        = shortenSentence($text, '。', 200);
 
   $data['image']       = $pq['.headlinePic']['img']->attr('data-src');
