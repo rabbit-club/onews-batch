@@ -77,14 +77,11 @@ foreach ($data_list as $key => $data) {
     continue;
   }
 
-  $text = $data['title'] . $data['description'];
-  $text = shortenSentence($text, '。', 200);
-
   $voice_text_status = false;
   $err_msg = '';
   for ($i = 0; $i <= VOICE_TEXT_RETRY_COUNT; ++$i) {
     try {
-      $file = getVoiceText($text, $speaker, $voice_text_format, $docomo_apikey, $voice_text_option);
+      $file = getVoiceText($data['text'], $speaker, $voice_text_format, $docomo_apikey, $voice_text_option);
       $voice_text_status = true;
       break;
     } catch (Exception $e) {
@@ -365,12 +362,20 @@ function getData($link)
   $pq = phpQuery::newDocumentFile($link);
   $data['link']        = $link;
   $data['title']       = $pq['.topicsName']['h1']->text();
+
   $description         = $pq['.hbody']->text();
   $description         = str_replace(["\r\n", "\n", "\r"], '', $description);
   $description         = removeBrackets($description, '（', '）');
   $description         = removeBrackets($description, '(', ')');
   $description         = removeBrackets($description, '<', '>');
+  $description         = removeBrackets($description, '＜', '＞');
+  $description         = removeBrackets($description, '【', '】');
+  $description         = removeBrackets($description, '［', '］');
   $data['description'] = $description;
+
+  $text                = $data['title'] . '　' . $data['description'];
+  $data['text']        = shortenSentence($text, '。', 200);
+
   $data['image']       = $pq['.headlinePic']['img']->attr('data-src');
 
   $meta_items = [];
